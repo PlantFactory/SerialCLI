@@ -1,0 +1,12 @@
+{
+  "name": "SerialCLI",
+  "frameworks": "Arduino",
+  "keywords": "serial, cli, command line interface, configuration",
+  "description": "This library provides the configuration interface by serial.  Settings are stored in EEPROM.",
+  "url": "https://github.com/PlantFactory/SerialCLI",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/PlantFactory/SerialCLI.git"
+  }
+}

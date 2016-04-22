@@ -143,7 +143,7 @@ class IntegerEntry: public Entry
 
     int serialize(int eeprom_index){
       uint32_t integer;
-      sscanf(value.c_str(), "%d", &integer);
+      sscanf(value.c_str(), "%lu", &integer);
 
       EEPROM.write(eeprom_index+0, (integer>>0) &0xff);
       EEPROM.write(eeprom_index+1, (integer>>8) &0xff);
@@ -163,7 +163,7 @@ class IntegerEntry: public Entry
     }
     uint32_t get_val(){
       uint32_t integer;
-      sscanf(value.c_str(), "%d", &integer);
+      sscanf(value.c_str(), "%lu", &integer);
       return integer;
     }
 };
@@ -249,7 +249,7 @@ class MacEntry: public Entry
     }
     int deserialize(int eeprom_index){
       char buf[32];
-      byte mac[6];
+      int mac[6];
 
       for (int i = 0; i < 6; i++) {
         mac[i] = EEPROM.read(eeprom_index+i);
@@ -264,10 +264,15 @@ class MacEntry: public Entry
     }
 
     byte *get_val(){
+      int mac[6];
+
       sscanf(value.c_str(), "%02x:%02x:%02x:%02x:%02x:%02x",
           &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+      for (int i = 0; i < 6; i++) {
+        this->mac[i] = mac[i];
+      }
 
-      return mac;
+      return this->mac;
     }
 };
 

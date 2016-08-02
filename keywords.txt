@@ -1,0 +1,44 @@
+#######################################
+# Syntax Coloring Map For SerialCLI
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+SerialCLI	KEYWORD1
+Entry	KEYWORD1
+StringEntry	KEYWORD1
+BoolEntry	KEYWORD1
+IntegerEntry	KEYWORD1
+IPAddressEntry	KEYWORD1
+MacEntry	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+get_val	KEYWORD2
+begin	KEYWORD2
+add_entry	KEYWORD2
+get_entry	KEYWORD2
+add_command	KEYWORD2
+help	KEYWORD2
+reboot	KEYWORD2
+show	KEYWORD2
+save	KEYWORD2
+load	KEYWORD2
+load_default	KEYWORD2
+set	KEYWORD2
+process_command	KEYWORD2
+process	KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+SERIALCLI_VERSION	LITERAL1
+SERIALCLI_LINE_BUF_SIZE	LITERAL1
+SERIALCLI_MAX_ENTRY_SIZE	LITERAL1
+SERIALCLI_NORMAL_MODE	LITERAL1
+SERIALCLI_CONF_MODE	LITERAL1

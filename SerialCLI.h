@@ -8,18 +8,35 @@
  */
 
 #include <Arduino.h>
-
 #include <EEPROM.h>
-#include <Ethernet.h>
 #include <SPI.h>
+#include <IPAddress.h>
 
+#include <stdio.h>
+#ifdef __AVR__
 #include <avr/wdt.h>
+#endif
 
-#define SERIALCLI_VERSION 0.01
+#define SERIALCLI_VERSION 0.02
 #define SERIALCLI_LINE_BUF_SIZE 128
 #define SERIALCLI_MAX_ENTRY_SIZE 16
 #define SERIALCLI_NORMAL_MODE 0
 #define SERIALCLI_CONF_MODE 1
+
+byte sepstring2byte(String str, String sep, byte *bytes, byte max_bytes, byte base)
+{
+  byte i = 0;
+  byte offset = 0;
+  for (byte i = 0; i < max_bytes; i++) {
+    bytes[i] = (byte)strtol(str.substring(offset).c_str(), NULL, base);
+    if (str.substring(offset).indexOf(sep) == -1) {
+      return i;
+    }
+    offset += str.substring(offset).indexOf(sep) + sep.length();
+  }
+
+  return max_bytes;
+}
 
 class Entry
 {
@@ -136,14 +153,23 @@ class IntegerEntry: public Entry
 
     int parse(String value){
       int ret;
+#ifndef ESP8266
       ret = sscanf(value.c_str(), "%*d");
+#else
+      ret = 0;
+#endif
       if(ret != 1){return -1;}
       return 0;
     }
 
     int serialize(int eeprom_index){
       uint32_t integer;
+
+#ifndef ESP8266
       sscanf(value.c_str(), "%lu", &integer);
+#else
+      integer = value.toInt();
+#endif
 
       EEPROM.write(eeprom_index+0, (integer>>0) &0xff);
       EEPROM.write(eeprom_index+1, (integer>>8) &0xff);
@@ -163,7 +189,13 @@ class IntegerEntry: public Entry
     }
     uint32_t get_val(){
       uint32_t integer;
+
+#ifndef ESP8266
       sscanf(value.c_str(), "%lu", &integer);
+#else
+      integer = value.toInt();
+#endif
+
       return integer;
     }
 };
@@ -177,22 +209,22 @@ class IPAddressEntry: public Entry
     }
 
     int parse(String val){
-      int first_octet, second_octet, third_octet, fourth_octet;
+      byte ip[4];
       int ret;
 
-      ret = sscanf(value.c_str(), "%d.%d.%d.%d", &first_octet, &second_octet, &third_octet, &fourth_octet);
+      ret = sepstring2byte(value, ".", ip, 4, 10);
+      
       if(ret != 4){return -1;}
       return 0;
     }
 
     int serialize(int eeprom_index){
-      int first_octet, second_octet, third_octet, fourth_octet;
-      sscanf(value.c_str(), "%d.%d.%d.%d", &first_octet, &second_octet, &third_octet, &fourth_octet);
+      byte ip[4];
+      sepstring2byte(value, ".", ip, 4, 10);
 
-      EEPROM.write(eeprom_index+0, first_octet);
-      EEPROM.write(eeprom_index+1, second_octet);
-      EEPROM.write(eeprom_index+2, third_octet);
-      EEPROM.write(eeprom_index+3, fourth_octet);
+      for (int i = 0; i < 4; i++) {
+        EEPROM.write(eeprom_index+i, ip[i]);
+      }
 
       return 4;
     }
@@ -203,14 +235,16 @@ class IPAddressEntry: public Entry
       value += String(EEPROM.read(eeprom_index+1))+String('.');
       value += String(EEPROM.read(eeprom_index+2))+String('.');
       value += String(EEPROM.read(eeprom_index+3));
+
       return 4;
     }
 
     IPAddress get_val(){
-      int first_octet, second_octet, third_octet, fourth_octet;
-      sscanf(value.c_str(), "%d.%d.%d.%d", &first_octet, &second_octet, &third_octet, &fourth_octet);
+      byte ip[4];
 
-      return IPAddress(first_octet, second_octet, third_octet, fourth_octet);
+      sepstring2byte(value, ".", ip, 4, 10);
+
+      return IPAddress(ip);
     }
 };
 
@@ -226,20 +260,19 @@ class MacEntry: public Entry
     }
 
     int parse(String val){
-      int mac[6];
+      byte mac[6];
       int ret;
 
-      ret = sscanf(value.c_str(), "%x:%x:%x:%x:%x:%x",
-          &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+      ret = sepstring2byte(value, ":", this->mac, 6, 16);
+
       if(ret != 6){return -1;}
       return 0;
     }
 
     int serialize(int eeprom_index){
-      int mac[6];
+      byte mac[6];
 
-      sscanf(value.c_str(), "%x:%x:%x:%x:%x:%x",
-          &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+      sepstring2byte(value, ":", mac, 6, 16);
 
       for (int i = 0; i < 6; i++) {
         EEPROM.write(eeprom_index+i, mac[i]);
@@ -249,7 +282,7 @@ class MacEntry: public Entry
     }
     int deserialize(int eeprom_index){
       char buf[32];
-      int mac[6];
+      byte mac[6];
 
       for (int i = 0; i < 6; i++) {
         mac[i] = EEPROM.read(eeprom_index+i);
@@ -264,13 +297,7 @@ class MacEntry: public Entry
     }
 
     byte *get_val(){
-      int mac[6];
-
-      sscanf(value.c_str(), "%02x:%02x:%02x:%02x:%02x:%02x",
-          &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
-      for (int i = 0; i < 6; i++) {
-        this->mac[i] = mac[i];
-      }
+      sepstring2byte(value, ":", this->mac, 6, 16);
 
       return this->mac;
     }
@@ -295,6 +322,9 @@ class SerialCLI
     SerialCLI(HardwareSerial &serial) : serial(&serial){
       entry_size = 0;
       state = SERIALCLI_NORMAL_MODE;
+#ifdef ESP8266
+      EEPROM.begin(512);
+#endif
     };
 
     ~SerialCLI(){
@@ -305,6 +335,10 @@ class SerialCLI
 
       serial->begin(baudrate);
 
+      delay(10);
+      serial->println();
+      serial->println();
+      serial->println();
       serial->println(initialize_message);
       serial->print("SerialCLI Ver.");
       serial->println(SERIALCLI_VERSION);
@@ -328,8 +362,6 @@ class SerialCLI
     {
       entries[entry_size] = entry;
       entry_size++;
-
-      serial->println(entry->default_value);
     }
 
     Entry *get_entry(String name){
@@ -360,8 +392,15 @@ class SerialCLI
     }
 
     void reboot(void){
+#ifdef __AVR__
       wdt_enable(WDTO_15MS);
       wdt_reset();
+#elif ESP8266
+      ESP.restart();
+#else
+      serial->print("reboot is not supported in this board.");
+      return;
+#endif
       while(1)
         ;
     }
@@ -383,6 +422,9 @@ class SerialCLI
         size = entries[i]->serialize(eeprom_index);
         eeprom_index += size;
       }
+#ifdef ESP8266
+      EEPROM.commit();
+#endif
       serial->println("done.");
     }
 
@@ -424,7 +466,7 @@ class SerialCLI
         }
       }
 
-      serial->print("command not found:");
+      serial->print("variable not found:");
       serial->println(line_buf.substring(0, name_len));
     }
 
@@ -479,7 +521,6 @@ class SerialCLI
       }else{
         int i;
         for (i = 0; i < extcmds_size; i++) {
-          serial->println(extcmds[i].cmdname);
           if (line_buf.equals(extcmds[i].cmdname)) {
             extcmds[i].func();
             break;
@@ -494,19 +535,31 @@ class SerialCLI
     }
 
     void process(void){
-      int prompt_flag;
+      static char last_c = '\0';
       while(serial->available()){
-        prompt_flag = false;
+        int prompt_flag = false;
         char c = serial->read();
-        serial->print(c);
         if(c == '\n'){
+          if(last_c != '\r'){
+            serial->println();
+            process_command();
+
+            line_buf = "";
+            prompt_flag = true;
+          }
+        }else if(c == '\r'){
+          serial->println();
           process_command();
 
           line_buf = "";
           prompt_flag = true;
-        }else if(c == '\r'){
-          continue;
+        }else if(c == 0x7f){
+          if(1 <= line_buf.length()){
+            line_buf.remove(line_buf.length()-1, 1);
+          serial->print('\b');
+          }
         }else if(line_buf.length() == SERIALCLI_LINE_BUF_SIZE-1){
+          serial->print(c);
           serial->print("too long!");
           while(serial->available()){
             char c = serial->read();
@@ -516,6 +569,7 @@ class SerialCLI
           line_buf = "";
           prompt_flag = true;
         }else{
+          serial->print(c);
           line_buf += c;
         }
         if(prompt_flag){
@@ -525,6 +579,7 @@ class SerialCLI
             serial->print("#");
           }
         }
+        last_c = c;
       }
     }
 };

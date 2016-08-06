@@ -17,7 +17,7 @@
 #include <avr/wdt.h>
 #endif
 
-#define SERIALCLI_VERSION 0.02
+#define SERIALCLI_VERSION 0.03
 #define SERIALCLI_LINE_BUF_SIZE 128
 #define SERIALCLI_MAX_ENTRY_SIZE 16
 #define SERIALCLI_NORMAL_MODE 0

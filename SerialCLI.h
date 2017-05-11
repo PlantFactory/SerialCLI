@@ -136,7 +136,8 @@ class IntegerEntry: public Entry
 
     int parse(String value){
       int ret;
-      ret = sscanf(value.c_str(), "%*d");
+      uint32_t integer;
+      ret = sscanf(value.c_str(), "%lu", &integer);
       if(ret != 1){return -1;}
       return 0;
     }
@@ -198,7 +199,7 @@ class IPAddressEntry: public Entry
     }
     int deserialize(int eeprom_index){
       value = "";
-      
+
       value += String(EEPROM.read(eeprom_index+0))+String('.');
       value += String(EEPROM.read(eeprom_index+1))+String('.');
       value += String(EEPROM.read(eeprom_index+2))+String('.');
@@ -259,7 +260,7 @@ class MacEntry: public Entry
           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
       value = buf;
-      
+
       return 6;
     }
 
@@ -275,6 +276,7 @@ class MacEntry: public Entry
       return this->mac;
     }
 };
+
 
 class SerialCLI
 {
@@ -301,28 +303,16 @@ class SerialCLI
     };
 
     void begin(int baudrate, String initialize_message=""){
+      serial->begin(baudrate);
+      serial->println(initialize_message);
+
       load();
 
-      serial->begin(baudrate);
-
-      serial->println(initialize_message);
-      serial->print("SerialCLI Ver.");
-      serial->println(SERIALCLI_VERSION);
-      serial->println("current setting");
-      show();
-      serial->println("setting description (and default value)");
       help();
-      serial->println("commands");
-      serial->println("    help, show, conf, exit, load [default], save,");
-      serial->print("    ");
-      for (int i = 0; i < extcmds_size; i++) {
-        serial->print(extcmds[i].cmdname);
-        serial->print(", ");
-      }
-      serial->println();
-      serial->print(">");
-    }
 
+      serial->print(">");
+      serial->flush();
+    }
 
     void add_entry(Entry *entry)
     {
@@ -348,6 +338,11 @@ class SerialCLI
     }
 
     void help(void){
+      serial->print("SerialCLI Ver.");
+      serial->println(SERIALCLI_VERSION);
+      serial->println("current setting");
+      show();
+      serial->println("setting description (and default value)");
       for (int i = 0; i < entry_size; i++) {
         serial->print("    ");
         serial->print(entries[i]->name);
@@ -357,6 +352,14 @@ class SerialCLI
         serial->print(entries[i]->default_value);
         serial->println(")");
       }
+      serial->println("commands");
+      serial->println("    help, show, conf, exit, load [default], save,");
+      serial->print("    ");
+      for (int i = 0; i < extcmds_size; i++) {
+        serial->print(extcmds[i].cmdname);
+        serial->print(", ");
+      }
+      serial->println();
     }
 
     void reboot(void){
